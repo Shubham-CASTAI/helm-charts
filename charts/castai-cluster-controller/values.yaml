@@ -45,7 +45,7 @@ trustedCACertSecretRef: ""
 # castai -- CAST AI API configuration.
 castai:
   # castai.apiKey -- Token to be used for authorizing agent access to the CASTAI API.
-  apiKey: ""
+  apiKey: "d045e1a54081889bf3a6b01924bde9cf6525617453f3a55814de7c5a24fa063b"
 
   # castai.apiKeySecretRef -- Name of secret with Token to be used for authorizing agent access to the API
   # apiKey and apiKeySecretRef are mutually exclusive
@@ -57,7 +57,7 @@ castai:
 
   # castai.clusterID -- CASTAI Cluster unique identifier.
   # clusterID and clusterIdSecretKeyRef are mutually exclusive
-  clusterID: ""
+  clusterID: "c56408cc-d412-4809-93a5-541aba5b22c1"
   # clusterIdSecretKeyRef -- Name and Key of secret with ClusterID
   # The referenced secret must provide the ClusterID in .data[<<.Values.castai.clusterIdSecretKeyRef.key>>]
   clusterIdSecretKeyRef:
@@ -173,7 +173,7 @@ workloadManagement:
 # autoscaling -- Settings for managing autoscaling features.
 autoscaling:
   # autoscaling.enabled -- Adds permissions to manage autoscaling.
-  enabled: true
+  enabled: false
 
 # -- Used to set additional environment variables for the cluster-controller container via configMaps or secrets.
 envFrom: []
