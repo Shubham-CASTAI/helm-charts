@@ -1,9 +1,6 @@
 dependencies:
-- name: ollama
-  repository: https://otwld.github.io/ollama-helm/
-  version: 1.4.0
 - name: vllm
   repository: file://child-charts/vllm
-  version: 0.0.6
-digest: sha256:939df74e924d70769ad205f1e12027976d3ef4dba72e44e230aa012db2ef068c
-generated: "2025-04-08T14:32:06.388712+01:00"
+  version: 0.0.24
+digest: sha256:9076f9d43c2bb331dc85aa55c76eafcf43f3c3a3fc957855bcafc9d99c993f0d
+generated: "2025-09-29T11:38:31.434901+02:00"

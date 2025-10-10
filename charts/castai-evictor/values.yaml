@@ -47,7 +47,11 @@ liveMigration:
   # to another node without interrupting these workloads.
   # Evictor will only consider LIVE migrations for workloads that explicitly request it.
   # as long as they can be scheduled somewhere else.
-  enabled: false
+  enabled: true
+  # If true, Evictor will use a cache for its LIVE-specific client.
+  # This should reduce the amount of read requests issued to the API server when working with LIVE migrations.
+  # When false, all LIVE-related read requests will go to the API server.
+  useK8sClientCache: true
 
 # woop -- Specifies settings for working with WOOP recommendations.
 woop:
@@ -176,6 +180,24 @@ clusterVPA:
   version: v0.8.4
   pollPeriodSeconds: 300
   resources: {}
+  # configOverride -- Override the default ClusterVPA calculation configuration.
+  # configOverride: |-
+  #   "requests": {
+  #     "memory": {
+  #       "base": "200Mi",
+  #       "max": "24Gi",
+  #       "step": "256Mi",
+  #       "nodesPerStep": 20
+  #     }
+  #   },
+  #   "limits": {
+  #     "memory": {
+  #       "base": "2Gi",
+  #       "max": "24Gi",
+  #       "step": "256Mi",
+  #       "nodesPerStep": 20
+  #     }
+  #   }
 
 # Container security context.
 # Ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-container
@@ -205,3 +227,9 @@ overrideEnvFrom: false
 # -- Additional environment sources for the evictor container.
 # Accepts a list of `configMapRef` or `secretRef` entries, following the standard `envFrom` format.
 envFrom: []
+
+# -- Used to set additional volumes.
+extraVolumes: []
+
+# -- Used to set additional volume mounts.
+extraVolumeMounts: []

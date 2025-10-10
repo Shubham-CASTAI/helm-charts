@@ -25,7 +25,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if eq (required ".Values.provider is required (gke|eks|aks)" .Values.provider) "eks" }}
+      {{- if eq (required ".Values.provider is required (gke|eks|aks|omni)" .Values.provider) "eks" }}
       priorityClassName: system-node-critical
       {{- end }}
       serviceAccountName: {{ include "gpu-metrics-exporter.serviceAccountName" . }}
@@ -47,12 +47,17 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if eq .Values.provider "gke"}}
+      {{- if .Values.gpuMetricsExporter.affinity }}
+      {{- with .Values.gpuMetricsExporter.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- else if (eq .Values.provider "gke")}}
       {{- with .Values.gke.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- end}}
+      {{- end }}
       {{- with .Values.gpuMetricsExporter.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
@@ -83,6 +88,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+           {{- if or .Values.castai.apiKey .Values.castai.apiKeySecretRef }}
             - name: "API_KEY"
               valueFrom:
                 secretKeyRef:
@@ -90,18 +96,11 @@ spec:
                   name: {{ .Values.castai.apiKeySecretRef }}
                   {{- else }}
                   name: {{ include "gpu-metrics-exporter.fullname" . }}
-                  {{- end }}
+                  {{- end}}
                   key: API_KEY
-          {{- if .Values.castai.clusterIdSecretKeyRef.name }}
-            {{- if ne .Values.castai.clusterId "" }}
-            {{- fail "clusterId and clusterIdSecretKeyRef are mutually exclusive" }}
+            {{ else }}
+              {{- fail "one of apiKey or apiKeySecretRef should be set" }}
             {{- end }}
-            - name: "CLUSTER_ID"
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.castai.clusterIdSecretKeyRef.name }}
-                  key: {{ .Values.castai.clusterIdSecretKeyRef.key }}
-          {{- end }}
           {{- if .Values.dcgmExporter.enabled }}
             - name: "DCGM_HOST"
               value: "localhost"

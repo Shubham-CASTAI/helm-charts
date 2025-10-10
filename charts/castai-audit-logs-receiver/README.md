@@ -30,7 +30,8 @@ A Helm chart for CAST AI OpenTelemetry Collector.
 | config.service.pipelines.logs.exporters[0] | string | `"debug"` |  |
 | config.service.pipelines.logs.receivers[0] | string | `"castai_audit_logs"` |  |
 | config.service.telemetry.logs.level | string | `"debug"` |  |
-| configMap.create | bool | `true` | Specifies whether a configMap should be created. |
+| configMap.configMapRef | string | `""` | The name of the configMap to use, which contains the otel collector config. configMap.create must be false. The key should be "config" and value should be the otel collector config in YAML format. |
+| configMap.create | bool | `true` | Specifies whether a configMap should be created using the values.config as data. |
 | containerSecurityContext | object | `{}` |  |
 | fullnameOverride | string | `""` | Override the release name used for the full names of resources. |
 | hostNetwork | bool | `false` | Host networking requested for this pod. Use the host's network namespace. |
@@ -52,5 +53,8 @@ A Helm chart for CAST AI OpenTelemetry Collector.
 | resources | object | `{}` |  |
 | rollout.rollingUpdate | object | `{}` |  |
 | rollout.strategy | string | `"RollingUpdate"` |  |
+| serviceAccount.annotations | object | `{}` | Annotations to add to the service account. |
+| serviceAccount.create | bool | `false` | Specifies whether a service account should be created. |
+| serviceAccount.name | string | `""` | The name of the service account to use. If not set, the default serviceAccount will be used. |
 | statefulset.podManagementPolicy | string | `"Parallel"` |  |
 | tolerations | list | `[]` |  |

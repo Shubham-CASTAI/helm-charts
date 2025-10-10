@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "pod-mutator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
   {{- include "pod-mutator.labels" . | nindent 4 }}
   annotations:
@@ -106,8 +107,10 @@ spec:
           {{- with .Values.envFrom }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.containerSecurityContext }}
           securityContext:
-            readOnlyRootFilesystem: true
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumeMounts:
             - mountPath: /certs
               name: certs

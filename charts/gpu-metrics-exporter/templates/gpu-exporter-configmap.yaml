@@ -3,7 +3,11 @@ kind: ConfigMap
 metadata:
   name: {{- include "gpu-metrics-exporter.config-map" . | indent 1}}
 data:
-{{- with .Values.gpuMetricsExporter.config }}
-  CLUSTER_ID: "{{ $.Values.castai.clusterId | default .CLUSTER_ID }}"
-  {{- toYaml (omit . "CLUSTER_ID") | nindent 2 }}
+  CLUSTER_ID: {{ required "castai.clusterId must be provided" .Values.castai.clusterId | quote }}
+  CAST_API: {{ required "castai.apiUrl must be provided" .Values.castai.apiUrl | quote }}
+
+{{- $config := .Values.gpuMetricsExporter.config | default dict }}
+{{- $otherConfig := omit $config "CLUSTER_ID" "CAST_API"}}
+{{- if $otherConfig }}
+  {{- toYaml $otherConfig | nindent 2 }}
 {{- end }}

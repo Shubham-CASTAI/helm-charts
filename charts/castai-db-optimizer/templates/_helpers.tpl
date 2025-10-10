@@ -22,6 +22,17 @@ Create chart name and version as used by the chart label.
 {{- end }}
 
 {{/*
+Helpers for customizing proxy TLS settings.
+*/}}
+{{- define "proxy.tls.certificates" -}}
+tls_certificates:
+  - certificate_chain:
+      filename: "{{ if .Values.proxy.tlsSecretName }}/etc/tls/tls.crt{{ else }}cert.pem{{ end }}"
+    private_key:
+      filename: "{{ if .Values.proxy.tlsSecretName }}/etc/tls/tls.key{{ else }}key.pem{{ end }}"
+{{- end -}}
+
+{{/*
 Define common labels.
 */}}
 {{- define "labels" -}}
@@ -58,4 +69,18 @@ Selector labels
 */}}
 {{- define "selectorLabels" -}}
 app.kubernetes.io/name: {{ include "name" . }}
+{{- end }}
+
+{{- define "workloads-annotations" -}}
+workloads.cast.ai/configuration: |
+  vertical:
+    memory:
+      optimization: off
+    containers:
+      query-processor:
+        cpu:
+          min: {{ .Values.resources.queryProcessor.cpu }}
+      proxy:
+        cpu:
+          min: {{ .Values.resources.proxy.cpu }}
 {{- end }}

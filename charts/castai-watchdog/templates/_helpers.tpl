@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "ai-optimizer-proxy.name" -}}
+{{- define "watchdog.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -10,7 +10,7 @@ Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
 If release name contains chart name it will be used as a full name.
 */}}
-{{- define "ai-optimizer-proxy.fullname" -}}
+{{- define "watchdog.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -26,16 +26,21 @@ If release name contains chart name it will be used as a full name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "ai-optimizer-proxy.chart" -}}
+{{- define "watchdog.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "ai-optimizer-proxy.labels" -}}
-helm.sh/chart: {{ include "ai-optimizer-proxy.chart" . }}
-{{ include "ai-optimizer-proxy.selectorLabels" . }}
+{{- define "watchdog.labels" -}}
+{{- if gt (len .Values.global.commonLabels) 0 }}
+{{- with .Values.global.commonLabels }}
+{{- toYaml . }}
+{{- end }}
+{{- end }}
+helm.sh/chart: {{ include "watchdog.chart" . }}
+{{ include "watchdog.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -45,39 +50,24 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels
 */}}
-{{- define "ai-optimizer-proxy.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "ai-optimizer-proxy.name" . }}
+{{- define "watchdog.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "watchdog.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-Common Annotations
-*/}}
-{{- define "ai-optimizer-proxy.annotations" -}}
-{{ if gt (len .Values.commonAnnotations) 0 -}}
-{{- with .Values.commonAnnotations }}
-{{- toYaml . }}
-{{- end }}
-{{- end }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "ai-optimizer-proxy.serviceAccountName" -}}
+{{- define "watchdog.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "ai-optimizer-proxy.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "watchdog.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
 
-{{- define "ai-optimizer-proxy.webhookName" -}}
-{{ include "ai-optimizer-proxy.fullname" . }}
-{{- end }}
-
-{{- define "ai-optimizer-proxy.exludeSelfLabelSelectors" -}}
-{{- range splitList "\n" (include "ai-optimizer-proxy.selectorLabels" .)  }}
+{{- define "watchdog.exludeSelfLabelSelectors" -}}
+{{- range splitList "\n" (include "watchdog.selectorLabels" .)  }}
   {{- /* we split label keypair by `:`. Let's hope there are no `:` in the key*/ -}}
   {{- $parts := splitn ":" 2 . -}}
   {{- $key := trim $parts._0 -}}
@@ -89,6 +79,17 @@ Create the name of the service account to use
 {{- end }}
 {{- end }}
 
-{{- define "ai-optimizer-proxy.certsSecretName" -}}
-{{ include "ai-optimizer-proxy.fullname" . }}-certs
+{{- define "watchdog.certsSecretName" -}}
+{{ include "watchdog.fullname" . }}-certs
+{{- end }}
+
+{{/*
+Common Annotations
+*/}}
+{{- define "watchdog.annotations" -}}
+{{- if gt (len .Values.global.commonAnnotations) 0 }}
+{{- with .Values.global.commonAnnotations }}
+{{- toYaml . }}
+{{- end }}
+{{- end }}
 {{- end }}

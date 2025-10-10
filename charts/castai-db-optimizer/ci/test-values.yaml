@@ -1,15 +1,42 @@
 cacheGroupID: "123"
 apiKey: "456"
 
-upstreamPostgresHostname: random.hostname
+protocol: "PostgreSQL"  # protocol configuration required for endpoints
 
-resources:
-  proxy:
-    ephemeralStorage: 5Mi
+endpoints:
+  # named endpoints (will create separate named services)
+  - name: "db1"  # This will create a named service: <chart-name>-db1
+    hostname: "db1.example.com"  # Upstream database DNS address
+    port: 5433  # Port on which the proxy will listen
+    targetPort: 5432  # Port on the target database
+    servicePort: 5433  # Port exposed by the service
+
+  - name: "db2"
+    hostname: "db2.example.com"
+    port: 5434
+    targetPort: 5432
+    servicePort: 5434
+    serviceDiscovery:
+      type: STRICT_DNS
+      dns_lookup_family: ALL
+      respect_dns_ttl: true
+
+  # unnamed endpoint (will not create a separate named service)
+  - hostname: "db3.example.com"
+    port: 5435
+    targetPort: 5432
+    servicePort: 5435
 
 proxy:
   readinessProbeEnabled: true
   livenessProbeEnabled: true
+  connectionLimits:
+    maxConnections: 1024
+    maxPendingRequests: 1024
+    maxRequests: 1024
+    maxRetries: 3
+  dnsLookupFamily: V4_ONLY
+  coredumpCollectionMode: "Full"
 
 podLabels:
   podLabel: label
@@ -17,9 +44,23 @@ podLabels:
 podAnnotations:
   podAnnotation: annotation
 
-
 commonLabels:
   commonLabel: label
 
 commonAnnotations:
   commonAnnotation: annotation
+
+# Test pooling configuration with individual username/password
+pooling:
+  enabled: false
+  username: ""
+  password: ""
+  poolSize: 25
+  minPoolSize: 3
+  poolMode: "transaction"
+  loadBalancingMode: "random"
+  defaultRole: "primary"
+  connectTimeout: 2000
+  idleTimeout: 45000
+  healthcheckTimeout: 2000
+  logClientConnections: false

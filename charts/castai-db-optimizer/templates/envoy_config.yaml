@@ -29,9 +29,6 @@ data:
       - name: "castai.cache_control"
         typed_config:
           "@type": type.googleapis.com/castai.cache_control.v1.CacheControlConfig
-          location:
-            provider: pce
-            region:
       - name: "castai.cluster_control"
         typed_config:
           "@type": type.googleapis.com/castai.cluster_control.v1.ClusterControlConfig
@@ -70,32 +67,25 @@ data:
                 - name: castai.filters.postgres
                   typed_config:
                     "@type": type.googleapis.com/castai.filters.postgres.v1.PostgresConfig
-                    common:
-                      stat_prefix: postgres
               {{- if .Values.proxy.networkDebug | default false }}
                 - name: castai.filters.dump
                   typed_config:
                     "@type": type.googleapis.com/castai.filters.dump.v1.Dump
                     name: backend
               {{- end }}
-                - name: castai.filters.router
+                - name: envoy.filters.network.tcp_proxy
                   typed_config:
-                    "@type": type.googleapis.com/castai.filters.router.v1.RouterConfig
-                    tcp_proxy_config:
-                      stat_prefix: proxy_egress
-                      cluster: postgres_upstream
-                      idle_timeout: 0s
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+                    stat_prefix: tcp
+                    cluster: postgres_upstream
+                    idle_timeout: 0s
               transport_socket:
                 name: envoy.transport_sockets.starttls
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.transport_sockets.starttls.v3.StartTlsConfig
                   tls_socket_config:
                     common_tls_context:
-                      tls_certificates:
-                        - certificate_chain:
-                            filename: "cert.pem"
-                          private_key:
-                            filename: "key.pem"
+                      {{- include "proxy.tls.certificates" . | nindent 22 }}
           socket_options:
             - description: "enable keep-alive"
               level: 1 # means socket level options
@@ -137,14 +127,10 @@ data:
                 - name: castai.filters.postgres
                   typed_config:
                     "@type": type.googleapis.com/castai.filters.postgres.v1.PostgresConfig
-                    common:
-                      stat_prefix: postgres
               {{- else if eq $.Values.protocol "MySQL" }}
                 - name: castai.filters.mysql
                   typed_config:
                     "@type": type.googleapis.com/castai.filters.mysql.v1.MySQLConfig
-                    common:
-                      stat_prefix: mysql
               {{- else }}
               {{- fail (printf "invalid protocol value '%s', available values: 'PostgreSQL', 'MySQL'" .Values.protocol ) -}}
               {{- end }}
@@ -154,24 +140,19 @@ data:
                     "@type": type.googleapis.com/castai.filters.dump.v1.Dump
                     name: backend_{{ $index }}
               {{- end }}
-                - name: castai.filters.router
+                - name: envoy.filters.network.tcp_proxy
                   typed_config:
-                    "@type": type.googleapis.com/castai.filters.router.v1.RouterConfig
-                    tcp_proxy_config:
-                      stat_prefix: proxy_egress_{{ $index }}
-                      cluster: endpoint_upstream_{{ $index }}
-                      idle_timeout: 0s
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+                    stat_prefix: proxy_egress_{{ $index }}
+                    cluster: endpoint_upstream_{{ $index }}
+                    idle_timeout: 0s
               transport_socket:
                 name: envoy.transport_sockets.starttls
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.transport_sockets.starttls.v3.StartTlsConfig
                   tls_socket_config:
                     common_tls_context:
-                      tls_certificates:
-                        - certificate_chain:
-                            filename: "cert.pem"
-                          private_key:
-                            filename: "key.pem"
+                      {{- include "proxy.tls.certificates" $ | nindent 22  }}
           socket_options:
             - description: "enable keep-alive"
               level: 1 # means socket level options
@@ -200,6 +181,13 @@ data:
           type: LOGICAL_DNS
           dns_lookup_family: ALL
           connect_timeout: 1s
+          circuit_breakers:
+            thresholds:
+              - priority: DEFAULT
+                max_connections: {{ .Values.proxy.connectionLimits.maxConnections | default 1024 }}
+                max_pending_requests: {{ .Values.proxy.connectionLimits.maxPendingRequests | default 1024 }}
+                max_requests: {{ .Values.proxy.connectionLimits.maxRequests | default 1024 }}
+                max_retries: {{ .Values.proxy.connectionLimits.maxRetries | default 3 }}
           load_assignment:
             cluster_name: postgres_upstream
             endpoints:
@@ -218,17 +206,31 @@ data:
                 common_tls_context:
                   tls_params:
                     tls_maximum_protocol_version: TLSv1_3
-          upstream_config:
-            name: castai.upstream.pool
-            typed_config:
-              "@type": type.googleapis.com/castai.upstream.v1.CastaiConnectionPoolProto
         {{- end }}
 
         {{- range $index, $endpoint := .Values.endpoints}}
         - name: endpoint_upstream_{{ $index }}
-          type: LOGICAL_DNS
-          dns_lookup_family: ALL
+          type: {{ if $endpoint.serviceDiscovery }}{{ default "LOGICAL_DNS" $endpoint.serviceDiscovery.type }}{{ else }}LOGICAL_DNS{{ end }}
+          dns_lookup_family: {{ if $endpoint.serviceDiscovery }}{{ default "ALL" $endpoint.serviceDiscovery.dns_lookup_family }}{{ else }}ALL{{ end }}
+          {{- if and $endpoint.serviceDiscovery $endpoint.serviceDiscovery.respect_dns_ttl }}
+          respect_dns_ttl: {{ $endpoint.serviceDiscovery.respect_dns_ttl }}
+          {{- end }}
+          {{- if and $endpoint.serviceDiscovery $endpoint.serviceDiscovery.dns_refresh_rate }}
+          dns_refresh_rate: {{ $endpoint.serviceDiscovery.dns_refresh_rate }}
+          {{- end }}
           connect_timeout: 1s
+          upstream_connection_options:
+            tcp_keepalive:
+              keepalive_interval: 5
+              keepalive_probes: 3
+              keepalive_time: 30
+          circuit_breakers:
+            thresholds:
+              - priority: DEFAULT
+                max_connections: {{ $.Values.proxy.connectionLimits.maxConnections | default 1024 }}
+                max_pending_requests: {{ $.Values.proxy.connectionLimits.maxPendingRequests | default 1024 }}
+                max_requests: {{ $.Values.proxy.connectionLimits.maxRequests | default 1024 }}
+                max_retries: {{ $.Values.proxy.connectionLimits.maxRetries | default 3 }}
           load_assignment:
             cluster_name: endpoint_upstream_{{ $index }}
             endpoints:
@@ -236,8 +238,13 @@ data:
                   - endpoint:
                       address:
                         socket_address:
-                          address: {{ required "endpoint hostname must be provided" $endpoint.hostname }}
-                          port_value: {{ required "endpoint targetPort is required" $endpoint.targetPort }}
+                          {{- if and $.Values.pooling $.Values.pooling.enabled }}
+                          address: 127.0.0.1 # local pgcat in same pod
+                          port_value: {{ add $endpoint.port 100 }} # pgcat port
+                          {{- else }}
+                          address: {{ required "endpoint hostname must be provided" $endpoint.hostname }} # upstream database host
+                          port_value: {{ required "endpoint targetPort is required" $endpoint.targetPort }} # upstream database port
+                          {{- end }}
           transport_socket:
             name: envoy.transport_sockets.start_tls
             typed_config:
@@ -247,10 +254,6 @@ data:
                 common_tls_context:
                   tls_params:
                     tls_maximum_protocol_version: TLSv1_3
-          upstream_config:
-            name: castai.upstream.pool
-            typed_config:
-              "@type": type.googleapis.com/castai.upstream.v1.CastaiConnectionPoolProto
         {{- end }}
 
         - name: {{ .Values.apiURL }}
@@ -285,11 +288,7 @@ data:
               common_tls_context:
                 tls_params:
                   tls_minimum_protocol_version: TLSv1_2
-                tls_certificates:
-                  - certificate_chain:
-                      filename: cert.pem
-                    private_key:
-                      filename: key.pem
+                {{- include "proxy.tls.certificates" . | nindent 16 }}
               sni: {{ .Values.apiURL }}
 
         - name: query_processor_service

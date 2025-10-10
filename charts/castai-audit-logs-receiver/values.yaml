@@ -77,9 +77,21 @@ rollout:
   rollingUpdate: {}
   strategy: RollingUpdate
 
+serviceAccount:
+  # serviceAccount.create -- Specifies whether a service account should be created.
+  create: false
+  # serviceAccount.annotations -- Annotations to add to the service account.
+  annotations: {}
+  # serviceAccount.name -- The name of the service account to use.
+  # If not set, the default serviceAccount will be used.
+  name: ""
+
 configMap:
-  # configMap.create -- Specifies whether a configMap should be created.
+  # configMap.create -- Specifies whether a configMap should be created using the values.config as data.
   create: true
+  # configMap.configMapRef -- The name of the configMap to use, which contains the otel collector config. configMap.create must be false.
+  # The key should be "config" and value should be the otel collector config in YAML format.
+  configMapRef: ""
 
 # hostNetwork -- Host networking requested for this pod. Use the host's network namespace.
 hostNetwork: false

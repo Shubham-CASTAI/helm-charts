@@ -162,13 +162,16 @@ k8sApiClient:
   # rateLimit -- Client uses token based rate limiting. By default, client has 200 api request burst limit set.
   # Buffer is refilled with 100 tokens every second. During sustained load client will be capped at 100 requests / sec.
   rateLimit:
-    burst: 200
-    qps: 100
+    burst: 400
+    qps: 200
 
-# workloadManagement -- Settings for managing deployments and other pod controllers.
-workloadManagement:
-  # workloadManagement.enabled -- Adds permissions to patch deployments.
-  enabled: false
+# -- Max number of actions, which are done concurrently.
+maxActionsInProgress: 1000
+
+# workloadAutoscaling -- Settings for managing CAST autoscaling CRDs.
+workloadAutoscaling:
+  # workloadAutoscaling.enabled -- Adds permissions to manage CAST autoscaling CRDs.
+  enabled: true
 
 # autoscaling -- Settings for managing autoscaling features.
 autoscaling:
@@ -177,3 +180,10 @@ autoscaling:
 
 # -- Used to set additional environment variables for the cluster-controller container via configMaps or secrets.
 envFrom: []
+
+# -- Used to set additional volumes
+extraVolumes: []
+
+# -- Used to set additional volume mounts
+
+extraVolumeMounts: []

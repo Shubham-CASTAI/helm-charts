@@ -6,6 +6,7 @@ metadata:
     {{- include "labels" . | nindent 4 }}
   annotations:
     {{- include "annotations" . | nindent 4 }}
+    {{- include "workloads-annotations" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas }}
   revisionHistoryLimit: 0
@@ -20,7 +21,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/envoy_config.yaml") . | sha256sum }}
+        checksum/config: {{ cat (include (print $.Template.BasePath "/envoy_config.yaml") .) (include (print $.Template.BasePath "/pgcat-config.yaml") .) | sha256sum }}
         {{- with .Values.podAnnotations }}
           {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -55,6 +56,19 @@ spec:
         - name: data-storage
           emptyDir:
             medium: {{ .Values.proxy.dataStorageMedium | default "" }}
+        {{- if .Values.proxy.tlsSecretName }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.proxy.tlsSecretName }}
+        {{- end }}
+        {{- if and .Values.pooling .Values.pooling.enabled }}
+        {{- range $index, $endpoint := .Values.endpoints }}
+        {{- $endpointName := $endpoint.name | default (printf "endpoint-%d" $index) }}
+        - name: pgcat-config-{{ $endpointName }}
+          configMap:
+            name: {{ include "name" $ }}-pgcat-config-{{ $endpointName }}
+        {{- end }}
+        {{- end }}
       containers:
         - name: query-processor
           image: "{{.Values.queryProcessorImage.repository}}:{{ include "queryProcessorImage" . }}"
@@ -73,6 +87,11 @@ spec:
             - name: metrics
               containerPort: 2112
               protocol: TCP
+            {{- if .Values.queryProcessor.debug }}
+            - name: pprof
+              containerPort: 6060
+              protocol: TCP
+            {{- end }}
           envFrom:
             - secretRef:
               {{- if .Values.apiKey }}
@@ -135,17 +154,16 @@ spec:
           resources:
             requests:
               cpu: {{ .Values.resources.queryProcessor.cpu }}
+              memory: {{ .Values.resources.queryProcessor.memory }}
             limits:
               memory: {{ .Values.resources.queryProcessor.memory }}
         - name: proxy
           image: "{{.Values.proxyImage.repository}}:{{ include "proxyImage" . }}"
           imagePullPolicy: {{.Values.proxyImage.pullPolicy}}
-          {{- if .Values.proxy.drainTimeSeconds }}
           lifecycle:
             preStop:
               exec:
-                command: ["sleep", {{ .Values.proxy.drainTimeSeconds | quote }} ]
-          {{- end}}
+                command: ["sleep", {{ .Values.proxy.drainPreHook | default 10 | quote }} ]
           ports:
             {{- if .Values.upstreamPostgresHostname }}
             - name: postgres
@@ -181,6 +199,12 @@ spec:
             initialDelaySeconds: 120
             periodSeconds: 5
           {{- end}}
+          {{- if eq .Values.proxy.coredumpCollectionMode "Full"}}
+          securityContext:
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+            runAsUser: 0
+          {{- else }}
           securityContext:
             capabilities:
               drop:
@@ -188,9 +212,11 @@ spec:
             readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 1000
+          {{- end }}
           command:
-            - /home/castai/envoy
+            - /home/castai/coredumpwrapper.sh
           args:
+            - /home/castai/envoy
             - -c
             - /home/castai/envoy.yaml
             - --component-log-level
@@ -200,15 +226,29 @@ spec:
             - --enable-core-dump
             - --concurrency
             - "{{ .Values.proxy.concurrency }}"
+            - --drain-strategy
+            - immediate
+            - --parent-shutdown-time-s
+            - "30"
+            - --drain-time-s
+            - "25"
 
           resources:
             requests:
               memory: {{ .Values.resources.proxy.memoryRequest }}
               cpu: {{ .Values.resources.proxy.cpu }}
-              ephemeral-storage: {{ .Values.resources.proxy.ephemeralStorage }}
             {{- if .Values.resources.proxy.memoryLimit }}
             limits:
               memory: {{ .Values.resources.proxy.memoryLimit }}
+            {{- end }}
+          env:
+            - name: API_URL
+              value: {{ required "apiURL must be provided" .Values.apiURL | printf "https://%s" }}
+            - name: CACHE_GROUP_ID
+              value: {{ .Values.cacheGroupID | required ".Values.cacheGroupID is required." | quote }}
+            {{- if .Values.proxy.coredumpCollectionMode }}
+            - name: COREDUMP_COLLECTION_MODE
+              value: {{ .Values.proxy.coredumpCollectionMode }}
             {{- end }}
           envFrom:
             - secretRef:
@@ -225,3 +265,81 @@ spec:
               mountPath: /tmp
             - name: data-storage
               mountPath: /data
+            {{- if .Values.proxy.tlsSecretName }}
+            - name: tls
+              mountPath: "/etc/tls"
+              readOnly: true
+            {{- end }}
+        {{- if and .Values.pooling .Values.pooling.enabled }}
+        {{- range $index, $endpoint := .Values.endpoints }}
+        {{- $endpointName := $endpoint.name | default (printf "endpoint-%d" $index) }}
+        {{- $portName := printf "pool-%s" $endpointName | trunc 15 }}
+        - name: pool-{{ $endpointName }}
+          image: {{ $.Values.pgcatImage.repository }}:{{ $.Values.pgcatImage.tag }}
+          imagePullPolicy: {{ $.Values.pgcatImage.pullPolicy }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              mkdir -p /tmp/pgcat
+              sed -e "s|\${PGCAT_USERNAME}|$PGCAT_USERNAME|g" -e "s|\${PGCAT_PASSWORD}|$PGCAT_PASSWORD|g" /etc/pgcat/pgcat.toml > /tmp/pgcat/pgcat.toml.subst
+              exec pgcat /tmp/pgcat/pgcat.toml.subst
+          ports:
+            - name: {{ $portName }}
+              containerPort: {{ add $endpoint.port 100 }}
+              protocol: TCP
+          env:
+          {{- if $.Values.pooling.credentialsSecretRef }}
+          - name: LOG_LEVEL
+            value: {{ $.Values.pooling.logLevel | default "info" }}
+          - name: PGCAT_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: {{ $.Values.pooling.credentialsSecretRef }}
+                key: username
+          - name: PGCAT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: {{ $.Values.pooling.credentialsSecretRef }}
+                key: password
+          {{- else }}
+          - name: PGCAT_USERNAME
+            value: "{{ $.Values.pooling.username }}"
+          - name: PGCAT_PASSWORD
+            value: "{{ $.Values.pooling.password }}"
+          {{- end }}
+          - name: ENDPOINT_PORT
+            value: "{{ add $endpoint.port 100 }}"
+          - name: ENDPOINT_HOSTNAME
+            value: "{{ $endpoint.hostname }}"
+          - name: ENDPOINT_TARGET_PORT
+            value: "{{ $endpoint.targetPort }}"
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+          volumeMounts:
+            - name: pgcat-config-{{ $endpointName }}
+              mountPath: /etc/pgcat/pgcat.toml
+              subPath: pgcat.toml
+            - name: temp-storage
+              mountPath: /tmp
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 100m
+          readinessProbe:
+            tcpSocket:
+              port: {{ add $endpoint.port 100 }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: {{ add $endpoint.port 100 }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+        {{- end }}
+        {{- end }}

@@ -34,16 +34,19 @@ Cluster controller is responsible for handling certain Kubernetes actions such a
 | dnsPolicy | string | `""` | DNS Policy Override - Needed when using some custom CNI's. |
 | enableTopologySpreadConstraints | bool | `false` |  |
 | envFrom | list | `[]` | Used to set additional environment variables for the cluster-controller container via configMaps or secrets. |
+| extraVolumeMounts | list | `[]` | Used to set additional volume mounts |
+| extraVolumes | list | `[]` | Used to set additional volumes |
 | fullnameOverride | string | `"castai-cluster-controller"` |  |
 | hostNetwork.enabled | bool | `false` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.repository | string | `"us-docker.pkg.dev/castai-hub/library/cluster-controller"` |  |
 | image.tag | string | `""` | Tag is set using Chart.yaml appVersion field. |
 | imagePullSecrets | object | `{}` |  |
-| k8sApiClient | object | `{"rateLimit":{"burst":200,"qps":100}}` | Settings for configuring k8s client used in castai-cluster-controller. |
+| k8sApiClient | object | `{"rateLimit":{"burst":400,"qps":200}}` | Settings for configuring k8s client used in castai-cluster-controller. |
 | leaderElectionEnabled | bool | `true` | When running 2+ replicas of castai-cluster-controller only one should work as a leader. |
 | leaderElectionLeaseDuration | string | `"15s"` |  |
 | leaderElectionRenewDeadline | string | `"10s"` |  |
+| maxActionsInProgress | int | `1000` | Max number of actions, which are done concurrently. |
 | monitor.resources.requests.cpu | string | `"100m"` |  |
 | monitor.resources.requests.memory | string | `"128Mi"` |  |
 | nameOverride | string | `""` |  |
@@ -68,5 +71,5 @@ Cluster controller is responsible for handling certain Kubernetes actions such a
 | trustedCACert | string | `""` | CA certificate to add to the set of root certificate authorities that the client will use when verifying server certificates. |
 | trustedCACertSecretRef | string | `""` | Name of secret with CA certificate to be added to the set of root certificate authorities that the client will use when verifying server certificates. trustedCACert and trustedCACertSecretRef are mutually exclusive. The referenced secret must provide the certificate in .data["TLS_CA_CERT_FILE"]. |
 | updateStrategy | object | `{"type":"RollingUpdate"}` | Controls `deployment.spec.strategy` field. |
-| workloadManagement | object | `{"enabled":false}` | Settings for managing deployments and other pod controllers. |
-| workloadManagement.enabled | bool | `false` | Adds permissions to patch deployments. |
+| workloadAutoscaling | object | `{"enabled":true}` | Settings for managing CAST autoscaling CRDs. |
+| workloadAutoscaling.enabled | bool | `true` | Adds permissions to manage CAST autoscaling CRDs. |

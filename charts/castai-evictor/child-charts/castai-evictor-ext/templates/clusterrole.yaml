@@ -72,3 +72,9 @@ rules:
       - get
       - list
       - watch
+  # ------------------------------------------------
+  # Live Migration: retrieving and creating migrations
+  # ------------------------------------------------
+  - apiGroups: [ "live.cast.ai" ]
+    resources: [ "*" ]
+    verbs: [ "get", "list", "watch", "patch", "create", "delete", "update" ]
